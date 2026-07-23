@@ -1519,6 +1519,33 @@
       }
     }
 
+    /* ── Alinhamento de episódios entre temporadas consecutivas ──
+       Quando duas ou mais linhas "numéricas" (ex: "1ª temporada: 25
+       episódios") aparecem seguidas, elas são agrupadas em
+       .rank-mal-align-group para que o texto de episódios comece sempre
+       na mesma posição horizontal. Linhas "grandes"/irregulares (filmes,
+       especiais com duração tipo "1h24m") ficam de fora do grupo e não
+       influenciam esse alinhamento.
+       No mobile o grupo vira "display: contents" (some estruturalmente)
+       para preservar o layout centralizado original linha a linha. */
+    .rank-mal-align-group {
+      display: contents;
+    }
+
+    @media (min-width: 761px) {
+      .rank-mal-align-group {
+        display: grid;
+        grid-template-columns: max-content 1fr max-content;
+        column-gap: 4px;
+        row-gap: 5px;
+      }
+
+      .rank-mal-align-group .rank-mal-row,
+      .rank-mal-align-group .rank-mal-content {
+        display: contents;
+      }
+    }
+
     @media (max-width: 760px) {
       a.rank-mal-label {
         justify-content: center;
@@ -1584,6 +1611,27 @@
 
     .rank-mal-note.empty {
       color: var(--low-priority);
+      font-style: italic;
+      font-weight: 400;
+      background: none;
+      box-shadow: none;
+      padding: 0;
+    }
+
+    /* ── Temporada não assistida (entry.unwatched = true) ──
+       Risca o nome/episódios da temporada e troca a nota por "-/-",
+       indicando visualmente que aquela parte ainda não foi vista. */
+    .rank-mal-row.unwatched .rank-mal-season,
+    .rank-mal-row.unwatched .rank-mal-eps {
+      color: rgba(255,255,255,0.25);
+      text-decoration: line-through;
+      text-decoration-color: rgba(255,255,255,0.25);
+      text-decoration-thickness: 1px;
+      text-decoration-skip-ink: none;
+    }
+
+    .rank-mal-note.unwatched {
+      color: rgba(255,255,255,0.25);
       font-style: italic;
       font-weight: 400;
       background: none;
@@ -3599,30 +3647,70 @@
             return;
           }
 
-          const rowsHtml = entries.map(entry => {
+          const rowEntries = entries.map(entry => {
             if (entry.spacer) {
-              return `
+              return {
+                alignable: false,
+                html: `
               <div class="rank-mal-row">
                 <span class="rank-mal-spacer"></span>
-              </div>`;
+              </div>`
+              };
             }
             const seasonLabel = escapeHtml(entry.label || '')
               .replace(/\b([IVXLCDM]+)\b/g, '<span class="rank-mal-roman">$1</span>');
+            const isNumericEpisodes = typeof entry.episodes === 'number';
+            // Só entra no grupo de alinhamento quando, além de numérico, o
+            // label é "limpo" (sem ":" dentro dele). Labels com ":" no meio
+            // (filmes, especiais, ou algo tipo "4ª temporada III: The Final
+            // Chapters") tendem a ser bem mais longos e, se entrassem no
+            // grupo, esticariam a coluna e desalinhariam as demais linhas.
+            const isAlignable = isNumericEpisodes
+              && !String(entry.label || '').includes(':');
             const epPart = (entry.episodes != null && entry.episodes !== '')
-              ? (typeof entry.episodes === 'number'
+              ? (isNumericEpisodes
                   ? `: ${escapeHtml(String(entry.episodes))} episódios`
                   : `: ${escapeHtml(String(entry.episodes))}`)
               : '';
             const hasNote = entry.note != null && entry.note !== '';
+            const isUnwatched = !!entry.unwatched;
             const noteText = hasNote
               ? `${escapeHtml(String(entry.note))}<span class="rank-mal-note-max">/10</span>`
-              : '—';
-            return `
-              <div class="rank-mal-row">
+              : (isUnwatched ? '-/-' : '—');
+            const noteClass = hasNote ? '' : (isUnwatched ? ' unwatched' : ' empty');
+            return {
+              alignable: isAlignable,
+              html: `
+              <div class="rank-mal-row${isUnwatched ? ' unwatched' : ''}">
                 <span class="rank-mal-content"><span class="rank-mal-season">${seasonLabel}</span><span class="rank-mal-eps">${epPart}</span></span>
-                <span class="rank-mal-note${hasNote ? '' : ' empty'}">${noteText}</span>
-              </div>`;
-          }).join('');
+                <span class="rank-mal-note${noteClass}">${noteText}</span>
+              </div>`
+            };
+          });
+
+          // Agrupa sequências consecutivas de linhas "alinháveis" (episódios
+          // numéricos) em um wrapper .rank-mal-align-group. Linhas isoladas
+          // (sozinhas, sem vizinha numérica) ficam fora do grupo, já que não
+          // há nada para alinhar com elas.
+          let rowsHtml = '';
+          let buffer = [];
+          const flushBuffer = () => {
+            if (buffer.length >= 2) {
+              rowsHtml += `<div class="rank-mal-align-group">${buffer.join('')}</div>`;
+            } else if (buffer.length === 1) {
+              rowsHtml += buffer[0];
+            }
+            buffer = [];
+          };
+          rowEntries.forEach(r => {
+            if (r.alignable) {
+              buffer.push(r.html);
+            } else {
+              flushBuffer();
+              rowsHtml += r.html;
+            }
+          });
+          flushBuffer();
 
           const malUsername = 'ptbr';
           const malFullTitle = (item && item.title) || '';
@@ -4273,23 +4361,23 @@
         { id: "hxh", img: "myranks-images/hxh.webp", title: "Hunter x Hunter (2011)", info: "1 temporada: 148 episódios" , studio: "Madhouse", airedSeason: "2011-2014", rewatch: "2 Times", mal: [ { label: "1 temporada", episodes: 148, note: 10 } ] },
         { id: "one-piece", img: "myranks-images/one-piece.webp", title: "One Piece", info: "1169 episódios</br> 4 Filmes: 7h32m" , studio: "Toei Animation", airedSeason: "1999-?", rewatch: "Impossible", mal: [ { label: "1 temporada", episodes: 1169, note: 10 },{ label: "Film: Z", episodes: "1h47m", note: 6 },{ label: "Film: Gold", episodes: "2h0m", note: 6 },{ label: "Stampede", episodes: "1h41m", note: 7 },{ label: "Film: Red", episodes: "1h56m", note: 8 },{spacer: true},{ label: "Monsters: 103 Mercies Dragon Damnation", episodes: "ONA", note: 7 },{ label: "Fan Letter", episodes: "TV Special", note: 8 },{ label: "Heroines", episodes: "TV Special", note: 7 }, ] },
         { id: "haikyuu", img: "myranks-images/haikyuu.webp", title: "Haikyu!!", info: "4 temporadas: 85 episódios <br>1 Filme: 1h24m" , studio: "Production I.G", airedSeason: "2014-?", rewatch: "2 Times", mal: [ { label: "1ª temporada", episodes: 25, note: 8 }, { label: "2ª temporada", episodes: 25, note: 8 }, { label: "3ª temporada", episodes: 10, note: 10 }, { label: "4ª temporada I", episodes: 13, note: 8 }, { label: "4ª temporada II", episodes: 12, note: 9 }, { label: "Movie: The Dumpster Battle", episodes: "1h24m", note: 8 } ] },
-        { id: "frieren", img: "myranks-images/frieren.webp", title: "Frieren: Beyond Journey's End", info: "(~) 1ª temporada: 28 episódios" , studio: "Madhouse", airedSeason: "2023-?", rewatch: "0 Times", mal: [ { label: "1ª temporada", episodes: 28, note: 10 } ] },
+        { id: "frieren", img: "myranks-images/frieren.webp", title: "Frieren: Beyond Journey's End", info: "(~) 1ª temporada: 28 episódios" , studio: "Madhouse", airedSeason: "2023-?", rewatch: "0 Times", mal: [ { label: "1ª temporada", episodes: 28, note: 10 }, { label: "2ª temporada", episodes: 10, unwatched: true } ] },
         { id: "jjk", img: "myranks-images/jjk.webp", title: "Jujutsu Kaisen", info: "3 temporadas: 59 episódios </br> 1 Filme: 1h45m" , studio: "MAPPA", airedSeason: "2020-?", rewatch: "Yes (3rd Season Not Yet)", mal: [ { label: "1ª temporada", episodes: 24, note: 8 }, { label: "Movie: Jujutsu Kaisen 0", episodes: "1h44m", note: 8 }, { label: "2ª temporada", episodes: 23, note: 9 }, { label: "3ª temporada", episodes: 12, note: 9 }, ] },
         { id: "oshi-no-ko", img: "myranks-images/oshi-no-ko.webp", title: "Oshi no Ko", info: "3 temporadas: 35 episódios" , studio: "Doga Kobo", airedSeason: "2023-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 11, note: 8 }, { label: "2ª temporada", episodes: 13, note: 7 }, { label: "3ª temporada", episodes: 11, note: 9 } ] },
         { id: "mushoku", img: "myranks-images/mushoku.webp", title: "Mushoku Tensei: Jobless Reincarnation", info: "2 temporadas: 47 episódios" , studio: "Studio Bind", airedSeason: "2021-?", rewatch: "Yes", mal: [ { label: "1ª temporada I", episodes: 11, note: 8 }, { label: "1ª temporada II", episodes: 12, note: 8 }, { label: "2ª temporada I", episodes: 12, note: 7 }, { label: "2ª temporada II", episodes: 12, note: 8 } ] },
-        { id: "cyberpunk", img: "myranks-images/cyberpunk.webp", title: "Cyberpunk: Edgerunners", info: "10 episódios" , studio: "Trigger", airedSeason: "2022", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 10, note: 8 } ] },
+        { id: "cyberpunk", img: "myranks-images/cyberpunk.webp", title: "Cyberpunk: Edgerunners", info: "10 episódios" , studio: "Trigger", airedSeason: "2022", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 10, note: 9 } ] },
         { id: "solo-leveling", img: "myranks-images/solo-leveling.webp", title: "Solo Leveling", info: "2 temporadas: 25 episódios" , studio: "A-1 Pictures", airedSeason: "2024-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 12, note: 8 }, { label: "2ª temporada", episodes: 13, note: 9 } ] },
         { id: "aot", img: "myranks-images/aot.webp", title: "Attack on Titan", info: "4 temporadas: 89 episódios" , studio: "Wit Studio/MAPPA", airedSeason: "2013-2022", rewatch: "Yes (4th Season III Not Yet)", mal: [ { label: "1ª temporada", episodes: 25, note: 9 }, { label: "2ª temporada", episodes: 12, note: 8 }, { label: "3ª temporada I", episodes: 12, note: 7 }, { label: "3ª temporada II", episodes: 10, note: 8 }, { label: "4ª temporada I", episodes: 16, note: 8 },{ label: "4ª temporada II", episodes: 12, note: 9 },{ label: "4ª temporada III: The Final Chapters", episodes: 2, note: 9 },] },
         { id: "dr-stone", img: "myranks-images/dr-stone.webp", title: "Dr. Stone", info: "4 temporadas: 95 episódios" , studio: "TMS Entertainment", airedSeason: "2019-2026", rewatch: "2 Times (4th Season Not Yet)", mal: [ { label: "1ª temporada", episodes: 24, note: 8 }, { label: "2ª temporada", episodes: 11, note: 7 },{ label: "Ryusui", episodes: "TV Special", note: 8 }, { label: "3ª temporada I", episodes: 11, note: 7 }, { label: "3ª temporada II", episodes: 11, note: 8 }, { label: "4ª temporada I", episodes: 12, note: 8 }, { label: "4ª temporada II", episodes: 12, note: 9 }, { label: "4ª temporada III", episodes: 13, note: 8 } ] },
         { id: "cote", img: "myranks-images/cote.webp", title: "Classroom of the Elite", info: "4 temporadas: 54 episódios" , studio: "Lerche", airedSeason: "2017-?", rewatch: "First 3 Seasons", mal: [ { label: "1ª temporada", episodes: 12, note: 8 }, { label: "2ª temporada", episodes: 13, note: 8 }, { label: "3ª temporada", episodes: 13, note: 7 }, { label: "4ª temporada", episodes: 16, note: 8 } ] },
-        { id: "re-zero", img: "myranks-images/re-zero.webp", title: "Re:Zero - Starting Life in Another World", info: "(~) 1ª temporada: 25 episódios" , studio: "White Fox", airedSeason: "2016-?", rewatch: "1st Season", mal: [ { label: "1ª temporada", episodes: 25, note: 9 }, { label: "2ª temporada", episodes: 13, note: 8 } ] },
+        { id: "re-zero", img: "myranks-images/re-zero.webp", title: "Re:Zero - Starting Life in Another World", info: "(~) 1ª temporada: 25 episódios" , studio: "White Fox", airedSeason: "2016-?", rewatch: "1st Season", mal: [ { label: "1ª temporada", episodes: 25, note: 9 }, { label: "2ª temporada I", episodes: 13, note: 8 } , { label: "2ª temporada II", episodes: 13, unwatched: true }, { label: "3ª temporada", episodes: 16, unwatched: true }, { label: "4ª temporada", episodes: 19, unwatched: true } ] },
         { id: "mha", img: "myranks-images/my-hero-academia.webp", title: "My Hero Academia", info: "8 temporadas: 171 episódios <br> 3 Filmes: 5h10m" , studio: "Bones", airedSeason: "2016-2025", rewatch: "First 5 Seasons", mal: [ { label: "1ª temporada", episodes: 13, note: 7 }, { label: "2ª temporada", episodes: 25, note: 7 }, { label: "3ª temporada", episodes: 25, note: 6 },{ label: "Movie 1: Two Heroes ", episodes: "1h36m", note: 6 }, { label: "4ª temporada", episodes: 25, note: 6 }, { label: "Movie 2:  Heroes Rising", episodes: "1h44m", note: 6 }, { label: "5ª temporada", episodes: 25, note: 7 }, { label: "6ª temporada", episodes: 25, note: 7 }, { label: "7ª temporada", episodes: 21, note: 7 },{ label: "Movie 4: You're Next", episodes: "1h50m", note: 7 }, { label: "8ª temporada", episodes: 11, note: 8 }, { label: "Episode 171: More", episodes: "TV Special", note: 7 } ] },
         { id: "tensei-shitara-slime", img: "myranks-images/tensei-shitara-slime.webp", title: "That Time I Got Reincarnated as a Slime", info: "(~~~) 3 temporadas: 72 episódios" , studio: "8Bit", airedSeason: "2018-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 24, note: 7 }, { label: "2ª temporada I", episodes: 12, note: 7 }, { label: "2ª temporada II", episodes: 12, note: 7 }, { label: "3ª temporada", episodes: 24, note: 7 } ] },
         { id: "opm", img: "myranks-images/opm.webp", title: "One-Punch Man", info: "(~) 2 temporadas: 24 episódios" , studio: "Madhouse / J.C. Staff", airedSeason: "2015-?", rewatch: "2 Times", mal: [ { label: "1ª temporada", episodes: 12, note: 9 }, { label: "2ª temporada", episodes: 12, note: 6 } ] },
         { id: "dan-da-dan", img: "myranks-images/dan-da-dan.webp", title: "Dan da Dan", info: "2 temporadas: 24 episódios" , studio: "Science SARU", airedSeason: "2024-?", rewatch: "Not Yet", mal: [ { label: "1ª temporada", episodes: 12, note: 8 }, { label: "2ª temporada", episodes: 12, note: 9 } ] },
         { id: "shadow", img: "myranks-images/shadow.webp", title: "The Eminence in Shadow", info: "2 temporadas: 32 episódios" , studio: "Nexus", airedSeason: "2022-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 20, note: 8 }, { label: "2ª temporada", episodes: 12, note: 8 } ] },
         { id: "grand-blue", img: "myranks-images/grand-blue.webp", title: "Grand Blue Dreaming", info: "2 temporadas: 24 episódios" , studio: "2018-?", airedSeason: "Zero-G", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 12, note: 8 }, { label: "2ª temporada", episodes: 12, note: 8 } ] },
-        { id: "hajime-no-ippo", img: "myranks-images/hajime-no-ippo.webp", title: "Hajime no Ippo: The Fighting", info: "(~) 2 temporadas: 101 episódios" , studio: "Madhouse", airedSeason: "2000-2014!", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 75, note: 9 }, { label: "2ª temporada", episodes: 26, note: 7 } ] },
+        { id: "hajime-no-ippo", img: "myranks-images/hajime-no-ippo.webp", title: "Hajime no Ippo: The Fighting", info: "(~) 3 temporadas: 126 episódios" , studio: "Madhouse", airedSeason: "2000-2014!", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 75, note: 9 }, { label: "2ª temporada", episodes: 26, note: 7 }, { label: "3ª temporada", episodes: 25, unwatched: true } ] },
         { id: "gachiakuta", img: "myranks-images/gachiakuta.webp", title: "Gachiakuta", info: "1 temporada: 24 episódios" , studio: "Bones", airedSeason: "2025-?", rewatch: "Not Yet", mal: [ { label: "1ª temporada", episodes: 24, note: 8 } ] },
         { id: "hells-paradise", img: "myranks-images/hells-paradise.webp", title: "Hell's Paradise: Jigokuraku", info: "2 temporadas: 25 episódios" , studio: "MAPPA", airedSeason: "2023-?", rewatch: "Season 1", mal: [ { label: "1ª temporada", episodes: 13, note: 8 }, { label: "2ª temporada", episodes: 12, note: 8 } ] },
         { id: "fragrant-flowers", img: "myranks-images/fragrant-flowers.webp", title: "The Fragrant Flowers Blooms with Dignity", info: "13 episódios" , studio: "CloverWorks", airedSeason: "2025-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 13, note: 8 } ] },
