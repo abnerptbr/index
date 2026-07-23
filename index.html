@@ -1461,9 +1461,19 @@
     }
 
     a.rank-mal-label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 5px;
       text-decoration: none;
       cursor: pointer;
       transition: color 0.15s ease;
+    }
+
+    a.rank-mal-label svg {
+      width: 11px;
+      height: 11px;
+      flex: 0 0 11px;
     }
 
     a.rank-mal-label:hover,
@@ -1472,27 +1482,47 @@
     }
 
     .rank-mal-rows {
-      display: grid;
-      grid-template-columns: 1fr max-content;
+      display: flex;
+      flex-direction: column;
       row-gap: 5px;
-      column-gap: 10px;
-      align-items: baseline;
-    }
-
-    .rank-mal-rows:has(> .rank-mal-row:only-child) {
-      column-gap: 0;
     }
 
     .rank-mal-row {
-      display: contents;
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      column-gap: 10px;
+    }
+
+    .rank-mal-rows:has(> .rank-mal-row:only-child) .rank-mal-row {
+      column-gap: 0;
     }
 
     .rank-mal-content {
-      grid-column: 1;
+      flex: 0 1 auto;
       min-width: 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    /* No PC (telas maiores que o breakpoint mobile), a linha volta a ficar
+       espalhada: nome da temporada na esquerda, nota na direita. No celular
+       (regra acima) continua tudo centralizado. */
+    @media (min-width: 761px) {
+      .rank-mal-row {
+        justify-content: space-between;
+      }
+
+      .rank-mal-content {
+        flex: 1 1 auto;
+      }
+    }
+
+    @media (max-width: 760px) {
+      a.rank-mal-label {
+        justify-content: center;
+      }
     }
 
     .rank-mal-season {
@@ -1502,6 +1532,13 @@
       color: var(--text);
       white-space: nowrap;
       text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+    }
+
+    /* Algarismo romano (I, II, III...) ao final do nome da temporada,
+       estilizado com fonte serifada e linhas acima/abaixo, tipo numeração
+       clássica romana. */
+    .rank-mal-roman {
+      font-family: "Times New Roman", Times, serif;
     }
 
     .rank-mal-eps {
@@ -1514,19 +1551,20 @@
     }
 
     .rank-mal-spacer {
-      grid-column: 1 / -1;
       height: 2px;
+      width: 100%;
     }
 
     .rank-mal-note {
-      grid-column: 2;
-      justify-self: end;
+      flex: 0 0 auto;
+      width: 46px;
       font-family: "Inter", sans-serif;
       font-weight: 800;
       font-size: 15px;
       color: var(--mal-blue);
       white-space: nowrap;
       display: inline-flex;
+      justify-content: center;
       align-items: baseline;
       gap: 2px;
       text-shadow: 0 1px 2px rgba(0,0,0,0.85), 0 0 10px rgba(0,0,0,0.5);
@@ -3568,7 +3606,8 @@
                 <span class="rank-mal-spacer"></span>
               </div>`;
             }
-            const seasonLabel = escapeHtml(entry.label || '');
+            const seasonLabel = escapeHtml(entry.label || '')
+              .replace(/\b([IVXLCDM]+)\b/g, '<span class="rank-mal-roman">$1</span>');
             const epPart = (entry.episodes != null && entry.episodes !== '')
               ? (typeof entry.episodes === 'number'
                   ? `: ${escapeHtml(String(entry.episodes))} episódios`
@@ -3585,8 +3624,20 @@
               </div>`;
           }).join('');
 
+          const malUsername = 'ptbr';
+          const malFullTitle = (item && item.title) || '';
+          const malSearchTitle = malFullTitle.split(':')[0].trim();
+          const malUrl = `https://myanimelist.net/animelist/${malUsername}?s=${encodeURIComponent(malSearchTitle)}&order=-14`;
+
           lightboxMal.innerHTML = `
-            <a class="rank-mal-label" href="https://myanimelist.net/" target="_blank" rel="noopener">MyAnimeList</a>
+            <a class="rank-mal-label" href="${malUrl}" target="_blank" rel="noopener">
+              MyAnimeList
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <path d="M15 3h6v6"></path>
+                <path d="M10 14 21 3"></path>
+              </svg>
+            </a>
             <div class="rank-mal-rows">${rowsHtml}</div>`;
         }
 
