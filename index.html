@@ -1378,17 +1378,27 @@
 
     /* ── Metadados (Studio / temporada) ── */
     .rank-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px 28px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
       width: 100%;
-      padding-top: 2px;
+      margin-top: 2px;
+      padding: 14px 20px;
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.02);
     }
 
     .rank-meta-item {
       display: flex;
       flex-direction: column;
+      align-items: center;
+      text-align: center;
       gap: 3px;
+      padding: 0 12px;
+    }
+
+    .rank-meta-item:not(:last-child) {
+      border-right: 1px solid rgba(255,255,255,0.09);
     }
 
     .rank-meta-label {
@@ -1543,6 +1553,20 @@
       .rank-mal-align-group .rank-mal-row,
       .rank-mal-align-group .rank-mal-content {
         display: contents;
+      }
+
+      /* Linhas "irregulares" (filmes, especiais, spacers) dentro do grupo
+         de alinhamento: em vez de virar itens soltos do grid (o que
+         quebraria o layout, já que elas não têm 3 partes como as linhas
+         numéricas), ocupam a largura inteira da linha do grid e mantêm
+         seu próprio layout flex interno, igual a uma linha fora do grupo. */
+      .rank-mal-align-group .rank-mal-row.rank-mal-row-break {
+        display: flex;
+        grid-column: 1 / -1;
+      }
+
+      .rank-mal-align-group .rank-mal-row.rank-mal-row-break .rank-mal-content {
+        display: inline-flex;
       }
     }
 
@@ -1860,8 +1884,9 @@
       .rank-meta {
         justify-content: center;
         text-align: center;
+        padding: 12px 14px;
       }
-      .rank-meta-item { align-items: center; }
+      .rank-meta-item { align-items: center; padding: 0 14px; }
 
       .rank-row-label { min-width: 104px; }
     }
@@ -2685,34 +2710,64 @@
       list-style: none;
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 32px 4px 14px;
+      gap: 14px;
+      padding: 40px 4px 16px;
       font-family: var(--font-title);
       font-weight: 900;
       font-size: 13px;
       text-transform: uppercase;
-      letter-spacing: 1.5px;
+      letter-spacing: 2px;
       color: var(--season-color);
-      
+
       /* Aqui está a mágica: Reinicia o contador para cada cabeçalho de temporada! */
-      counter-reset: item; 
+      counter-reset: item;
     }
     li.season-header:first-child { padding-top: 12px; }
-    
+
+    /* Aspas de canto estilo mangá (「 texto 」) em volta do nome da
+       temporada, numa serifada clássica — remete à numeração romana usada
+       nas temporadas dos cards, dando uma identidade mais "editorial". */
     li.season-header .season-text {
+      position: relative;
       flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
-    
+
+    li.season-header .season-text::before,
+    li.season-header .season-text::after {
+      font-family: "Times New Roman", Times, serif;
+      font-weight: 400;
+      font-size: 20px;
+      line-height: 1;
+      color: var(--season-color);
+      opacity: 0.8;
+    }
+
+    li.season-header .season-text::before { content: "「"; }
+    li.season-header .season-text::after { content: "」"; }
+
+    /* Linha tracejada até o fim, sem sumir antes da borda. */
     li.season-header .season-line {
       flex: 1;
       height: 1px;
-      background: color-mix(in srgb, var(--season-color) 35%, transparent);
+      background-image: repeating-linear-gradient(
+        to right,
+        var(--season-color) 0,
+        var(--season-color) 5px,
+        transparent 5px,
+        transparent 11px
+      );
+      opacity: 0.6;
     }
 
     @media (max-width: 600px) {
-      li.season-header { font-size: 11px; padding: 24px 2px 10px; gap: 12px; }
+      li.season-header { font-size: 11px; padding: 30px 2px 12px; gap: 10px; }
       li.season-header:first-child { padding-top: 8px; }
-      
+      li.season-header .season-text::before,
+      li.season-header .season-text::after { font-size: 16px; }
+
       ol.ranking.mode-watching li.anime-item:hover {
         transform: translateY(-2px) translateZ(0); /* Leve efeito também no mobile para dar o feedback */
       }
@@ -3652,7 +3707,7 @@
               return {
                 alignable: false,
                 html: `
-              <div class="rank-mal-row">
+              <div class="rank-mal-row rank-mal-row-break">
                 <span class="rank-mal-spacer"></span>
               </div>`
               };
@@ -3681,36 +3736,27 @@
             return {
               alignable: isAlignable,
               html: `
-              <div class="rank-mal-row${isUnwatched ? ' unwatched' : ''}">
+              <div class="rank-mal-row${isUnwatched ? ' unwatched' : ''}${isAlignable ? '' : ' rank-mal-row-break'}">
                 <span class="rank-mal-content"><span class="rank-mal-season">${seasonLabel}</span><span class="rank-mal-eps">${epPart}</span></span>
                 <span class="rank-mal-note${noteClass}">${noteText}</span>
               </div>`
             };
           });
 
-          // Agrupa sequências consecutivas de linhas "alinháveis" (episódios
-          // numéricos) em um wrapper .rank-mal-align-group. Linhas isoladas
-          // (sozinhas, sem vizinha numérica) ficam fora do grupo, já que não
-          // há nada para alinhar com elas.
-          let rowsHtml = '';
-          let buffer = [];
-          const flushBuffer = () => {
-            if (buffer.length >= 2) {
-              rowsHtml += `<div class="rank-mal-align-group">${buffer.join('')}</div>`;
-            } else if (buffer.length === 1) {
-              rowsHtml += buffer[0];
-            }
-            buffer = [];
-          };
-          rowEntries.forEach(r => {
-            if (r.alignable) {
-              buffer.push(r.html);
-            } else {
-              flushBuffer();
-              rowsHtml += r.html;
-            }
-          });
-          flushBuffer();
+          // Agrupa TODAS as linhas (o card inteiro) em um único
+          // .rank-mal-align-group, para que a coluna de episódios fique
+          // sempre alinhada na mesma posição, mesmo quando uma linha
+          // "irregular" (filme, especial, spacer) aparece no meio. Linhas
+          // não-alinháveis recebem a classe "rank-mal-row-break", que as
+          // faz ocupar a largura inteira do grid (grid-column: 1 / -1) em
+          // vez de participar do alinhamento de colunas.
+          const alignableCount = rowEntries.filter(r => r.alignable).length;
+          let rowsHtml;
+          if (alignableCount >= 2) {
+            rowsHtml = `<div class="rank-mal-align-group">${rowEntries.map(r => r.html).join('')}</div>`;
+          } else {
+            rowsHtml = rowEntries.map(r => r.html).join('');
+          }
 
           const malUsername = 'ptbr';
           const malFullTitle = (item && item.title) || '';
@@ -4022,8 +4068,27 @@
               tags.push({ key, label: CATEGORY_LABEL[key], color: CATEGORY_HOVER_COLOR[key] });
             }
           });
-          // Posição do anime dentro de cada uma dessas listas (ex: #5 em Mecha/Cyberpunk)
+          // Além das categorias de gênero (acima), também confere se o anime
+          // pertence às listas "Incomplete" e "Announced Sequels" — usa o
+          // próprio getFilteredData pra achar a posição, então basta ver se
+          // o id aparece na lista de cada uma.
+          ['incomplete', 'announced'].forEach(key => {
+            const list = (typeof getFilteredData === 'function') ? getFilteredData(key) : [];
+            if (list.some(a => a.id === animeId)) {
+              const label = String(CATEGORY_LABEL[key] || '').replace(/:\s*$/, '');
+              tags.push({ key, label, color: CATEGORY_HOVER_COLOR[key] });
+            }
+          });
+          // Posição do anime dentro de cada uma dessas listas (ex: #5 em Mecha/Cyberpunk).
+          // "Incomplete" e "Announced Sequels" não são listas de ranking
+          // (o "MyRanks"), então não fazem sentido com número de posição —
+          // aparecem só com o nome, sem "#".
+          const RANK_POSITION_KEYS = new Set(['all', 'romance', 'isekai', 'sports', 'mecha']);
           tags.forEach(t => {
+            if (!RANK_POSITION_KEYS.has(t.key)) {
+              t.position = null;
+              return;
+            }
             const list = (typeof getFilteredData === 'function') ? getFilteredData(t.key) : [];
             const idx = list.findIndex(a => a.id === animeId);
             t.position = idx === -1 ? null : idx + 1;
@@ -4359,24 +4424,24 @@
       const rawAnimeData = [
         { id: "code-geass", img: "myranks-images/code-geass.webp", title: "Code Geass: Lelouch of the Rebellion", info: "2 temporadas: 50 episódios", studio: "Sunrise", airedSeason: "2006-2008", rewatch: "Not Yet", mal: [ { label: "1ª temporada", episodes: 25, note: 9 }, { label: "2ª temporada", episodes: 25, note: 10 } ] },
         { id: "hxh", img: "myranks-images/hxh.webp", title: "Hunter x Hunter (2011)", info: "1 temporada: 148 episódios" , studio: "Madhouse", airedSeason: "2011-2014", rewatch: "2 Times", mal: [ { label: "1 temporada", episodes: 148, note: 10 } ] },
-        { id: "one-piece", img: "myranks-images/one-piece.webp", title: "One Piece", info: "1169 episódios</br> 4 Filmes: 7h32m" , studio: "Toei Animation", airedSeason: "1999-?", rewatch: "Impossible", mal: [ { label: "1 temporada", episodes: 1169, note: 10 },{ label: "Film: Z", episodes: "1h47m", note: 6 },{ label: "Film: Gold", episodes: "2h0m", note: 6 },{ label: "Stampede", episodes: "1h41m", note: 7 },{ label: "Film: Red", episodes: "1h56m", note: 8 },{spacer: true},{ label: "Monsters: 103 Mercies Dragon Damnation", episodes: "ONA", note: 7 },{ label: "Fan Letter", episodes: "TV Special", note: 8 },{ label: "Heroines", episodes: "TV Special", note: 7 }, ] },
+        { id: "one-piece", img: "myranks-images/one-piece.webp", title: "One Piece", info: "Muitas Coisas" , studio: "Toei Animation", airedSeason: "1999-?", rewatch: "Impossible", mal: [ { label: "1 temporada", episodes: 1169, note: 10 },{ label: "Film: Z", episodes: "1h47m", note: 6 },{ label: "Film: Gold", episodes: "2h0m", note: 6 },{ label: "Stampede", episodes: "1h41m", note: 7 },{ label: "Film: Red", episodes: "1h56m", note: 8 },{spacer: true},{ label: "Monsters: 103 Mercies Dragon Damnation", episodes: "ONA", note: 7 },{ label: "Fan Letter", episodes: "TV Special", note: 8 },{ label: "Heroines", episodes: "TV Special", note: 7 }, ] },
         { id: "haikyuu", img: "myranks-images/haikyuu.webp", title: "Haikyu!!", info: "4 temporadas: 85 episódios <br>1 Filme: 1h24m" , studio: "Production I.G", airedSeason: "2014-?", rewatch: "2 Times", mal: [ { label: "1ª temporada", episodes: 25, note: 8 }, { label: "2ª temporada", episodes: 25, note: 8 }, { label: "3ª temporada", episodes: 10, note: 10 }, { label: "4ª temporada I", episodes: 13, note: 8 }, { label: "4ª temporada II", episodes: 12, note: 9 }, { label: "Movie: The Dumpster Battle", episodes: "1h24m", note: 8 } ] },
         { id: "frieren", img: "myranks-images/frieren.webp", title: "Frieren: Beyond Journey's End", info: "(~) 1ª temporada: 28 episódios" , studio: "Madhouse", airedSeason: "2023-?", rewatch: "0 Times", mal: [ { label: "1ª temporada", episodes: 28, note: 10 }, { label: "2ª temporada", episodes: 10, unwatched: true } ] },
-        { id: "jjk", img: "myranks-images/jjk.webp", title: "Jujutsu Kaisen", info: "3 temporadas: 59 episódios </br> 1 Filme: 1h45m" , studio: "MAPPA", airedSeason: "2020-?", rewatch: "Yes (3rd Season Not Yet)", mal: [ { label: "1ª temporada", episodes: 24, note: 8 }, { label: "Movie: Jujutsu Kaisen 0", episodes: "1h44m", note: 8 }, { label: "2ª temporada", episodes: 23, note: 9 }, { label: "3ª temporada", episodes: 12, note: 9 }, ] },
+        { id: "jjk", img: "myranks-images/jjk.webp", title: "Jujutsu Kaisen", info: "3 temporadas: 59 episódios </br> 1 Filme: 1h45m" , studio: "MAPPA", airedSeason: "2020-?", rewatch: "3rd Season Not Yet", mal: [ { label: "1ª temporada", episodes: 24, note: 8 }, { label: "Movie: Jujutsu Kaisen 0", episodes: "1h44m", note: 8 }, { label: "2ª temporada", episodes: 23, note: 9 }, { label: "3ª temporada", episodes: 12, note: 9 }, ] },
         { id: "oshi-no-ko", img: "myranks-images/oshi-no-ko.webp", title: "Oshi no Ko", info: "3 temporadas: 35 episódios" , studio: "Doga Kobo", airedSeason: "2023-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 11, note: 8 }, { label: "2ª temporada", episodes: 13, note: 7 }, { label: "3ª temporada", episodes: 11, note: 9 } ] },
         { id: "mushoku", img: "myranks-images/mushoku.webp", title: "Mushoku Tensei: Jobless Reincarnation", info: "2 temporadas: 47 episódios" , studio: "Studio Bind", airedSeason: "2021-?", rewatch: "Yes", mal: [ { label: "1ª temporada I", episodes: 11, note: 8 }, { label: "1ª temporada II", episodes: 12, note: 8 }, { label: "2ª temporada I", episodes: 12, note: 7 }, { label: "2ª temporada II", episodes: 12, note: 8 } ] },
         { id: "cyberpunk", img: "myranks-images/cyberpunk.webp", title: "Cyberpunk: Edgerunners", info: "10 episódios" , studio: "Trigger", airedSeason: "2022", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 10, note: 9 } ] },
         { id: "solo-leveling", img: "myranks-images/solo-leveling.webp", title: "Solo Leveling", info: "2 temporadas: 25 episódios" , studio: "A-1 Pictures", airedSeason: "2024-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 12, note: 8 }, { label: "2ª temporada", episodes: 13, note: 9 } ] },
-        { id: "aot", img: "myranks-images/aot.webp", title: "Attack on Titan", info: "4 temporadas: 89 episódios" , studio: "Wit Studio/MAPPA", airedSeason: "2013-2022", rewatch: "Yes (4th Season III Not Yet)", mal: [ { label: "1ª temporada", episodes: 25, note: 9 }, { label: "2ª temporada", episodes: 12, note: 8 }, { label: "3ª temporada I", episodes: 12, note: 7 }, { label: "3ª temporada II", episodes: 10, note: 8 }, { label: "4ª temporada I", episodes: 16, note: 8 },{ label: "4ª temporada II", episodes: 12, note: 9 },{ label: "4ª temporada III: The Final Chapters", episodes: 2, note: 9 },] },
-        { id: "dr-stone", img: "myranks-images/dr-stone.webp", title: "Dr. Stone", info: "4 temporadas: 95 episódios" , studio: "TMS Entertainment", airedSeason: "2019-2026", rewatch: "2 Times (4th Season Not Yet)", mal: [ { label: "1ª temporada", episodes: 24, note: 8 }, { label: "2ª temporada", episodes: 11, note: 7 },{ label: "Ryusui", episodes: "TV Special", note: 8 }, { label: "3ª temporada I", episodes: 11, note: 7 }, { label: "3ª temporada II", episodes: 11, note: 8 }, { label: "4ª temporada I", episodes: 12, note: 8 }, { label: "4ª temporada II", episodes: 12, note: 9 }, { label: "4ª temporada III", episodes: 13, note: 8 } ] },
+        { id: "aot", img: "myranks-images/aot.webp", title: "Attack on Titan", info: "4 temporadas: 89 episódios" , studio: "Wit Studio/MAPPA", airedSeason: "2013-2022", rewatch: "First 3 Seasons", mal: [ { label: "1ª temporada", episodes: 25, note: 9 }, { label: "2ª temporada", episodes: 12, note: 8 }, { label: "3ª temporada I", episodes: 12, note: 7 }, { label: "3ª temporada II", episodes: 10, note: 8 }, { label: "4ª temporada I", episodes: 16, note: 8 },{ label: "4ª temporada II", episodes: 12, note: 9 },{ label: "4ª temporada III: The Final Chapters", episodes: 2, note: 9 },] },
+        { id: "dr-stone", img: "myranks-images/dr-stone.webp", title: "Dr. Stone", info: "4 temporadas: 95 episódios" , studio: "TMS Entertainment", airedSeason: "2019-2026", rewatch: "2 Times (Season 4 Not Yet)", mal: [ { label: "1ª temporada", episodes: 24, note: 8 }, { label: "2ª temporada", episodes: 11, note: 7 },{ label: "Ryusui", episodes: "TV Special", note: 8 }, { label: "3ª temporada I", episodes: 11, note: 7 }, { label: "3ª temporada II", episodes: 11, note: 8 }, { label: "4ª temporada I", episodes: 12, note: 8 }, { label: "4ª temporada II", episodes: 12, note: 9 }, { label: "4ª temporada III", episodes: 13, note: 8 } ] },
         { id: "cote", img: "myranks-images/cote.webp", title: "Classroom of the Elite", info: "4 temporadas: 54 episódios" , studio: "Lerche", airedSeason: "2017-?", rewatch: "First 3 Seasons", mal: [ { label: "1ª temporada", episodes: 12, note: 8 }, { label: "2ª temporada", episodes: 13, note: 8 }, { label: "3ª temporada", episodes: 13, note: 7 }, { label: "4ª temporada", episodes: 16, note: 8 } ] },
         { id: "re-zero", img: "myranks-images/re-zero.webp", title: "Re:Zero - Starting Life in Another World", info: "(~) 1ª temporada: 25 episódios" , studio: "White Fox", airedSeason: "2016-?", rewatch: "1st Season", mal: [ { label: "1ª temporada", episodes: 25, note: 9 }, { label: "2ª temporada I", episodes: 13, note: 8 } , { label: "2ª temporada II", episodes: 13, unwatched: true }, { label: "3ª temporada", episodes: 16, unwatched: true }, { label: "4ª temporada", episodes: 19, unwatched: true } ] },
         { id: "mha", img: "myranks-images/my-hero-academia.webp", title: "My Hero Academia", info: "8 temporadas: 171 episódios <br> 3 Filmes: 5h10m" , studio: "Bones", airedSeason: "2016-2025", rewatch: "First 5 Seasons", mal: [ { label: "1ª temporada", episodes: 13, note: 7 }, { label: "2ª temporada", episodes: 25, note: 7 }, { label: "3ª temporada", episodes: 25, note: 6 },{ label: "Movie 1: Two Heroes ", episodes: "1h36m", note: 6 }, { label: "4ª temporada", episodes: 25, note: 6 }, { label: "Movie 2:  Heroes Rising", episodes: "1h44m", note: 6 }, { label: "5ª temporada", episodes: 25, note: 7 }, { label: "6ª temporada", episodes: 25, note: 7 }, { label: "7ª temporada", episodes: 21, note: 7 },{ label: "Movie 4: You're Next", episodes: "1h50m", note: 7 }, { label: "8ª temporada", episodes: 11, note: 8 }, { label: "Episode 171: More", episodes: "TV Special", note: 7 } ] },
-        { id: "tensei-shitara-slime", img: "myranks-images/tensei-shitara-slime.webp", title: "That Time I Got Reincarnated as a Slime", info: "(~~~) 3 temporadas: 72 episódios" , studio: "8Bit", airedSeason: "2018-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 24, note: 7 }, { label: "2ª temporada I", episodes: 12, note: 7 }, { label: "2ª temporada II", episodes: 12, note: 7 }, { label: "3ª temporada", episodes: 24, note: 7 } ] },
-        { id: "opm", img: "myranks-images/opm.webp", title: "One-Punch Man", info: "(~) 2 temporadas: 24 episódios" , studio: "Madhouse / J.C. Staff", airedSeason: "2015-?", rewatch: "2 Times", mal: [ { label: "1ª temporada", episodes: 12, note: 9 }, { label: "2ª temporada", episodes: 12, note: 6 } ] },
+        { id: "tensei-shitara-slime", img: "myranks-images/tensei-shitara-slime.webp", title: "That Time I Got Reincarnated as a Slime", info: "(~~~) 3 temporadas: 72 episódios" , studio: "8Bit", airedSeason: "2018-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 24, note: 7 }, { label: "2ª temporada I", episodes: 12, note: 7 }, { label: "2ª temporada II", episodes: 12, note: 7 }, { label: "3ª temporada", episodes: 24, note: 7 },  { label: "Movie 2: Tears of the Azure Sea", episodes: "1h44m", unwatched: true },  { label: "4ª temporada", episodes: 24, unwatched: true }  ] },
+        { id: "opm", img: "myranks-images/opm.webp", title: "One-Punch Man", info: "(~) 2 temporadas: 24 episódios" , studio: "Madhouse / J.C. Staff", airedSeason: "2015-?", rewatch: "2 Times", mal: [ { label: "1ª temporada", episodes: 12, note: 9 }, { label: "2ª temporada", episodes: 12, note: 6 },  { label: "3ª temporada I", episodes: 12, unwatched: true } ] },
         { id: "dan-da-dan", img: "myranks-images/dan-da-dan.webp", title: "Dan da Dan", info: "2 temporadas: 24 episódios" , studio: "Science SARU", airedSeason: "2024-?", rewatch: "Not Yet", mal: [ { label: "1ª temporada", episodes: 12, note: 8 }, { label: "2ª temporada", episodes: 12, note: 9 } ] },
         { id: "shadow", img: "myranks-images/shadow.webp", title: "The Eminence in Shadow", info: "2 temporadas: 32 episódios" , studio: "Nexus", airedSeason: "2022-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 20, note: 8 }, { label: "2ª temporada", episodes: 12, note: 8 } ] },
-        { id: "grand-blue", img: "myranks-images/grand-blue.webp", title: "Grand Blue Dreaming", info: "2 temporadas: 24 episódios" , studio: "2018-?", airedSeason: "Zero-G", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 12, note: 8 }, { label: "2ª temporada", episodes: 12, note: 8 } ] },
+        { id: "grand-blue", img: "myranks-images/grand-blue.webp", title: "Grand Blue Dreaming", info: "2 temporadas: 24 episódios" , studio: "Zero-G", airedSeason: "2018-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 12, note: 8 }, { label: "2ª temporada", episodes: 12, note: 8 } ] },
         { id: "hajime-no-ippo", img: "myranks-images/hajime-no-ippo.webp", title: "Hajime no Ippo: The Fighting", info: "(~) 3 temporadas: 126 episódios" , studio: "Madhouse", airedSeason: "2000-2014!", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 75, note: 9 }, { label: "2ª temporada", episodes: 26, note: 7 }, { label: "3ª temporada", episodes: 25, unwatched: true } ] },
         { id: "gachiakuta", img: "myranks-images/gachiakuta.webp", title: "Gachiakuta", info: "1 temporada: 24 episódios" , studio: "Bones", airedSeason: "2025-?", rewatch: "Not Yet", mal: [ { label: "1ª temporada", episodes: 24, note: 8 } ] },
         { id: "hells-paradise", img: "myranks-images/hells-paradise.webp", title: "Hell's Paradise: Jigokuraku", info: "2 temporadas: 25 episódios" , studio: "MAPPA", airedSeason: "2023-?", rewatch: "Season 1", mal: [ { label: "1ª temporada", episodes: 13, note: 8 }, { label: "2ª temporada", episodes: 12, note: 8 } ] },
@@ -4385,7 +4450,7 @@
         { id: "shangri-la-frontier", img: "myranks-images/shangri-la-frontier.webp", title: "Shangri-La Frontier", info: "2 temporadas: 50 episódios" , studio: "C2C", airedSeason: "2023-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 25, note: 7 }, { label: "2ª temporada", episodes: 25, note: 7 } ] },
         { id: "horimiya", img: "myranks-images/horimiya.webp", title: "Horimiya", info: "2 temporadas: 26 episódios" , studio: "CloverWorks", airedSeason: "2021-2023", rewatch: "2 Times (1st Season)", mal: [ { label: "1ª temporada", episodes: 13, note: 8 }, { label: "2ª temporada", episodes: 13, note: 7 } ] },
         { id: "your-lie-in-april", img: "myranks-images/your-lie-in-april.webp", title: "Your Lie in April", info: "22 episódios" , studio: " A-1 Pictures", airedSeason: "2014-2015", rewatch: "Impossible", mal: [ { label: "1 temporada", episodes: 22, note: 8 } ] },
-        { id: "wistoria", img: "myranks-images/wistoria.webp", title: "Wistoria: Wand and Sword", info: "(~) 1 temporada: 12 episódios" , studio: "Actas / Bandai Filmworks", airedSeason: "2024-?", rewatch: "Season 1", mal: [ { label: "1ª temporada", episodes: 12, note: 8 } ] },
+        { id: "wistoria", img: "myranks-images/wistoria.webp", title: "Wistoria: Wand and Sword", info: "(~) 1 temporada: 12 episódios" , studio: "Actas / Bandai Filmworks", airedSeason: "2024-?", rewatch: "Season 1", mal: [ { label: "1ª temporada", episodes: 12, note: 8 }, { label: "2ª temporada", episodes: 12, unwatched: true } ] },
         { id: "akame-ga-kill", img: "myranks-images/akame-ga-kill.webp", title: "Akame ga Kill", info: "24 episódios" , studio: "White Fox", airedSeason: "2024", rewatch: "Yes", mal: [ { label: "1 temporada", episodes: 24, note: 8 } ] },
         { id: "roshidere", img: "myranks-images/roshidere.webp", title: "Alya Sometimes Hides Her Feelings in Russian", info: "1 temporada: 12 episódios" , studio: "Doga Kobo", airedSeason: "2024-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 12, note: 7 } ] },
         { id: "demon-slayer", img: "myranks-images/demon-slayer.webp", title: "Demon Slayer: Kimetsu no Yaiba", info: "5 temporadas: 63 episódios <br>1 Filme: 2h35m" , studio: "Unfotable", airedSeason: "2019-?", rewatch: "Season 1", mal: [ { label: "1ª temporada", episodes: 26, note: 7 }, { label: "2ª temporada", episodes: 7, note: 6 }, { label: "3ª temporada", episodes: 11, note: 8 }, { label: "4ª temporada", episodes: 11, note: 7 }, { label: "5ª temporada", episodes: 8, note: 7 }, { label: "Movie: Infinity Castle Part 1", episodes: "2h35m", note: 8 } ] },
@@ -4393,54 +4458,54 @@
         { id: "opposites", img: "myranks-images/opposites.webp", title: "You and I are Polar Opposites", info: "1 temporada: 12 episódios" , studio: "Lapin Track", airedSeason: "2026-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 8 } ] },
         { id: "blue-box", img: "myranks-images/blue-box.webp", title: "Blue Box", info: "1 temporada: 25 episódios" , studio: "Telecom Animation Film", airedSeason: "2024-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 25, note: 8 } ] },
         { id: "cinderella-gray", img: "myranks-images/cinderella-gray.webp", title: "Uma Musume: Cinderella Gray", info: "23 episódios" , studio: "CygamesPictures", airedSeason: "2025", rewatch: "No", mal: [ { label: "1ª temporada I", episodes: 13, note: 8 }, { label: "1ª temporada II", episodes: 10, note: 7 } ] },
-        { id: "bunny-girl-senpai", img: "myranks-images/bunny-girl-senpai.webp", title: "Rascal Does Not Dream of Bunny Girl Senpai", info: "(~~~) 1ª temporada: 13 episódios" , studio: "CloverWorks", airedSeason: "2018-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 13, note: 8 } ] },
+        { id: "bunny-girl-senpai", img: "myranks-images/bunny-girl-senpai.webp", title: "Rascal Does Not Dream of Bunny Girl Senpai", info: "(~~~) 1ª temporada: 13 episódios" , studio: "CloverWorks", airedSeason: "2018-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 13, note: 8 }, { label: "Movie 1: Rascal Does Not Dream of a Dreaming Girl", episodes: "1h30m", unwatched: true }, { label: "Movie 2: Rascal Does Not Dream of a Sister Venturing Out", episodes: "1h13m", unwatched: true }, { label: "Movie 3: Rascal Does Not Dream of a Knapsack Kid", episodes: "1h14m", unwatched: true }, , { label: "2ª temporada", episodes: 13, unwatched: true } ] },
         { id: "makeine", img: "myranks-images/makeine.webp", title: "Makeine: Too Many Losing Heroines!", info: "1 temporada: 12 episódios" , studio: "A-1 Pictures", airedSeason: "2024-?", rewatch: "Not Yet", mal: [ { label: "1ª temporada", episodes: 12, note: 7 } ] },
         { id: "silent-voice", img: "myranks-images/silent-voice.webp", title: "A Silent Voice", info: "Filme: 2h10m" , studio: "Kyoto Animation", airedSeason: "2016", rewatch: "No", mal: [ { label: "Filme", episodes: "2h10m", note: 7 } ] },
+        { id: "my-dress-up-darling", img: "myranks-images/my-dress-up-darling.webp", title: "My Dress-Up Darling", info: "(~) 1ª temporada: 12 episódios" , studio: "CloverWorks", airedSeason: "2022-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 7 }, , { label: "2ª temporada", episodes: 12, unwatched: true } ] },
         { id: "zom-100", img: "myranks-images/zom-100.webp", title: "Zom 100: Bucket List of the Dead", info: "12 episódios" , studio: "Bug Films", airedSeason: "2023", rewatch: "Yes", mal: [ { label: "1 temporada", episodes: 12, note: 7 } ] },
         { id: "eighty-six", img: "myranks-images/eighty-six.webp", title: "86 Eighty-Six", info: "2 temporadas: 23 episódios" , studio: "A-1 Pictures", airedSeason: "2021", rewatch: "No", mal: [ { label: "1ª temporada I", episodes: 11, note: 7 }, { label: "1ª temporada II", episodes: 12, note: 7 } ] },
         { id: "sword-art-online", img: "myranks-images/sword-art-online.webp", title: "Sword Art Online", info: "(~~~) 1ª temporada: 25 episódios" , studio: "A-1 Pictures", airedSeason: "2012-?", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 25, note: 7 } ] },
         { id: "food-wars", img: "myranks-images/food-wars.webp", title: "Food Wars! Shokugeki no Soma", info: "5 temporadas: 86 episódios" , studio: "J.C.Staff", airedSeason: "2015-2020", rewatch: "Yes", mal: [ { label: "1ª temporada", episodes: 24, note: 7 }, { label: "2ª temporada", episodes: 13, note: 7 }, { label: "3ª temporada I", episodes: 12, note: 7 }, { label: "3ª temporada II", episodes: 12, note: 6 }, { label: "4ª temporada", episodes: 12, note: 5 }, { label: "5ª temporada", episodes: 13, note: 4 } ] },
         { id: "chitose", img: "myranks-images/chitose.webp", title: "Chitose is in Ramune Bottle", info: "1 temporada: 13 episódios" , studio: "Feel", airedSeason: "2025-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 13, note: 7 } ] },
         { id: "the-100-girlfriends", img: "myranks-images/the-100-girlfriends.webp", title: "The 100 Girlfriends Who Really, Really, Really, Really, Really Love You", info: "2 temporadas: 24 episódios" , studio: "SynergySP", airedSeason: "2024-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 7 }, { label: "2ª temporada", episodes: 12, note: 7 } ] },
-        { id: "danmachi", img: "myranks-images/danmachi.webp", title: "Danmachi: Is It Wrong to Try to Pick Up Girls in a Dungeon", info: "(~) 4 temporadas: 59 episódios" , studio: "J.C. Staff", airedSeason: "2015-?", rewatch: "3 First Seasons", mal: [ { label: "1ª temporada", episodes: 13, note: 7 }, { label: "2ª temporada", episodes: 12, note: 5 }, { label: "3ª temporada", episodes: 12, note: 5 }, { label: "4ª temporada I", episodes: 11, note: 7 }, { label: "4ª temporada II", episodes: 11, note: 8 } ] },
+        { id: "danmachi", img: "myranks-images/danmachi.webp", title: "Danmachi: Is It Wrong to Try to Pick Up Girls in a Dungeon", info: "(~) 4 temporadas: 59 episódios" , studio: "J.C. Staff", airedSeason: "2015-?", rewatch: "3 First Seasons", mal: [ { label: "1ª temporada", episodes: 13, note: 7 }, { label: "2ª temporada", episodes: 12, note: 5 }, { label: "3ª temporada", episodes: 12, note: 5 }, { label: "4ª temporada I", episodes: 11, note: 7 }, { label: "4ª temporada II", episodes: 11, note: 8 },{ label: "5ª temporada", episodes: 15, unwatched: true } ] },
         { id: "tsukimichi", img: "myranks-images/tsukumichi.webp", title: "Tsukimichi -Moonlit Fantasy-", info: "2 temporadas: 37 episódios" , studio: "C2C / J.C. Staff", airedSeason: "2021-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 6 }, { label: "2ª temporada", episodes: 25, note: 7 } ] },
-        { id: "my-dress-up-darling", img: "myranks-images/my-dress-up-darling.webp", title: "My Dress-Up Darling", info: "(~) 1ª temporada: 12 episódios" , studio: "CloverWorks", airedSeason: "2022-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 7 } ] },
-        { id: "the-apothecary-diaries", img: "myranks-images/the-apothecary-diaries.webp", title: "The Apothecary Diaries", info: "(~) 1ª temporada: 24 episódios" , studio: "OLM / TOHO animation studio", airedSeason: "2023-?", rewatch: "Not Yet", mal: [ { label: "1ª temporada", episodes: 24, note: 7 } ] },
-        { id: "gurren-lagann", img: "myranks-images/gurren-lagann.webp", title: "Gurren Lagann", info: "(~~) 1 temporada: 27 episódios" , studio: "Gainax", airedSeason: "2007", rewatch: "Never", mal: [ { label: "1 temporada", episodes: 27, note: 7 } ] },
+        { id: "the-apothecary-diaries", img: "myranks-images/the-apothecary-diaries.webp", title: "The Apothecary Diaries", info: "(~) 1ª temporada: 24 episódios" , studio: "OLM / TOHO animation studio", airedSeason: "2023-?", rewatch: "Not Yet", mal: [ { label: "1ª temporada", episodes: 24, note: 7 }, { label: "2ª temporada", episodes: 24, unwatched: true } ] },
+        { id: "gurren-lagann", img: "myranks-images/gurren-lagann.webp", title: "Gurren Lagann", info: "(~~) 1 temporada: 27 episódios" , studio: "Gainax", airedSeason: "2007", rewatch: "Never", mal: [ { label: "1 temporada", episodes: 27, note: 7 }, { label: "Movie 1: Childhood's End", episodes: "1h52m", unwatched: true }, { label: "Movie 2: The Lights in the Sky are Stars", episodes: "2h05m", unwatched: true } ] },
         { id: "welcome-to-the-ballroom", img: "myranks-images/welcome-to-the-ballroom.webp", title: "Welcome to the Ballroom", info: "24 episódios" , studio: "Production I.G", airedSeason: "2017", rewatch: "No", mal: [ { label: "1 temporada", episodes: 24, note: 7 } ] },
         { id: "nanatsu-no-taizai", img: "myranks-images/nanatsu-no-taizai.webp", title: "The Seven Deadly Sins: Nanatsu no Taizai", info: "4 temporadas: 100 episódios <br>3 Filmes: 3h38m" , studio: "A-1 Pictures / Studio Deen", airedSeason: "2014-2021", rewatch: "2 First Seasons", mal: [ { label: "1ª temporada", episodes: 24, note: 7 }, { label: "1ª temporada II", episodes: 4, note: 7 }, { label: "2ª temporada", episodes: 24, note: 7 }, { label: "Movie 1: Prisoners of the Sky", episodes: "1h39m", note: 6 },{ label: "3ª temporada", episodes: 24, note: 6 }, { label: "4ª temporada", episodes: 24, note: 5 },  { label: "Movie 2: Cursed By Light", episodes: "1h19m", note: 5 }, { label: "ONA: Grudge of Edinburgh", episodes: "52m", note: 3 } ] },
         { id: "nisekoi", img: "myranks-images/nisekoi.webp", title: "Nisekoi: False Love", info: "2 temporadas: 32 episódios" , studio: "Shaft", airedSeason: "2014-2015", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 20, note: 7 }, { label: "2ª temporada", episodes: 12, note: 6 } ] },
         { id: "prism-rondo", img: "myranks-images/prism-rondo.webp", title: "Love Through a Prism", info: "20 episódios", studio: "Wit Studio", airedSeason: "2026", rewatch: "No", mal: [ { label: "1 temporada", episodes: 20, note: 7 } ] },
         { id: "more-than-a-married-couple", img: "myranks-images/more-than-married-couple.webp", title: "More than a Married Couple, but Not Lovers", info: "12 episódios" , studio: "Project No.9", airedSeason: "2022", rewatch: "Yes", mal: [ { label: "1 temporada", episodes: 12, note: 7 } ] },
-        { id: "the-angel-next-door", img: "myranks-images/the-angel-next-door.webp", title: "The Angel Next Door Spoils Me Rotten", info: "(~) 1 temporada: 12 episódios" , studio: "Project No.9", airedSeason: "2023-?", rewatch: "1st Season", mal: [ { label: "1ª temporada", episodes: 12, note: 7 } ] },
+        { id: "the-angel-next-door", img: "myranks-images/the-angel-next-door.webp", title: "The Angel Next Door Spoils Me Rotten", info: "(~) 1 temporada: 12 episódios" , studio: "Project No.9", airedSeason: "2023-?", rewatch: "1st Season", mal: [ { label: "1ª temporada", episodes: 12, note: 7 }, { label: "2ª temporada", episodes: 12, unwatched: true } ] },
         { id: "the-girl-i-like-forgot-her-glasses", img: "myranks-images/the-girl-i-like-forgot-her-glasses.webp", title: "The Girl I Like Forgot Her Glasses", info: "13 episódios" , studio: "Project No.9", airedSeason: "2023", rewatch: "No", mal: [ { label: "1 temporada", episodes: 13, note: 7 } ] },
-        { id: "shield-hero", img: "myranks-images/shield-hero.webp", title: "The Rising of the Shield Hero", info: "(~) 1ª temporada: 25 episódios" , studio: "Kinema Citrus", airedSeason: "2019-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 25, note: 7 } ] },
-        { id: "farming-life", img: "myranks-images/farming-life.webp", title: "Farming Life in Another World", info: "(~) 1 temporada: 12 episódios" , studio: "Okuruto Noboru", airedSeason: "2022-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 6 } ] },
+        { id: "shield-hero", img: "myranks-images/shield-hero.webp", title: "The Rising of the Shield Hero", info: "(~) 1ª temporada: 25 episódios" , studio: "Kinema Citrus", airedSeason: "2019-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 25, note: 7 }, { label: "2ª temporada", episodes: 13, unwatched: true }, { label: "3ª temporada", episodes: 12, unwatched: true }, { label: "4ª temporada", episodes: 12, unwatched: true } ] },
+        { id: "farming-life", img: "myranks-images/farming-life.webp", title: "Farming Life in Another World", info: "(~) 1 temporada: 12 episódios" , studio: "Okuruto Noboru", airedSeason: "2022-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 6 }, { label: "2ª temporada", episodes: 12, unwatched: true } ] },
         { id: "lookism", img: "myranks-images/lookism.webp", title: "Lookism", info: "8 episódios" , studio: "Studio Mir", airedSeason: "2024", rewatch: "No", mal: [ { label: "1 temporada", episodes: 8, note: 6 } ] },
         { id: "yamada-kun-lv999", img: "myranks-images/yamada-kun-lv999.webp", title: "My Love Story with Yamada-kun at LV999", info: "13 episódios" , studio: "Project No.9", airedSeason: "2023", rewatch: "No", mal: [ { label: "1 temporada", episodes: 13, note: 6 } ] },
-        { id: "tower-of-god", img: "myranks-images/tower-of-god.webp", title: "Tower of God", info: "(~) 1ª temporada: 13 episódios" , studio: "Telecom Animation Film", airedSeason: "2020-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 13, note: 7 } ] },
+        { id: "tower-of-god", img: "myranks-images/tower-of-god.webp", title: "Tower of God", info: "(~) 1ª temporada: 13 episódios" , studio: "Telecom Animation Film", airedSeason: "2020-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 13, note: 7 }, { label: "2ª temporada I", episodes: 13, unwatched: true }, { label: "2ª temporada II", episodes: 13, unwatched: true } ] },
         { id: "the-god-of-high-school", img: "myranks-images/the-god-of-high-school.webp", title: "The God of High School", info: "13 episódios" , studio: "MAPPA", airedSeason: "2020", rewatch: "No", mal: [ { label: "1 temporada", episodes: 13, note: 7 } ] },
         { id: "healing-magic", img: "myranks-images/healing-magic.webp", title: "The Wrong Way to Use Healing Magic", info: "1 temporada: 13 episódios" , studio: "Studio Blanc", airedSeason: "2022-?", rewatch: "", mal: [ { label: "1ª temporada", episodes: 13, note: 7 } ] },
         { id: "toradora", img: "myranks-images/toradora.webp", title: "Toradora!", info: "25 episódios" , studio: "J.C. Staff", airedSeason: "2008-2009", rewatch: "No", mal: [ { label: "1 temporada", episodes: 25, note: 6 } ] },
-        { id: "bottom-tier", img: "myranks-images/bottom-tier.webp", title: "Bottom-Tier Character Tomozaki", info: "(~) 1ª temporada: 12 episódios" , studio: "Project No.9", airedSeason: "2021-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 5 } ] },
+        { id: "bottom-tier", img: "myranks-images/bottom-tier.webp", title: "Bottom-Tier Character Tomozaki", info: "(~) 1ª temporada: 12 episódios" , studio: "Project No.9", airedSeason: "2021-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 5 }, { label: "2ª temporada", episodes: 13, unwatched: true } ] },
         { id: "highschool-of-the-dead", img: "myranks-images/highschool-of-the-dead.webp", title: "Highschool of the Dead", info: "12 episódios" , studio: "Madhouse", airedSeason: "2010", rewatch: "No", mal: [ { label: "1 temporada", episodes: 12, note: 6 }, { label: "Drifters of the Dead", episodes: "OVA", note: 5 } ] },
         { id: "blue-period", img: "myranks-images/blue-period.webp", title: "Blue Period", info: "12 episódios" , studio: "Seven Arcs", airedSeason: "2021", rewatch: "No", mal: [ { label: "1 temporada", episodes: 12, note: 5 } ] },
-        { id: "masamune-kuns-revenge", img: "myranks-images/masamune-kuns-revenge.webp", title: "Masamune-kun's Revenge", info: "(~) 1ª temporada: 12 episódios" , studio: "Silver Link / Studio Blanc", airedSeason: "2017-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 5 } ] },
-        { id: "immortal-king", img: "myranks-images/immortal-king.webp", title: "The Daily Life of the Immortal King", info: "(~) 1ª temporada: 15 episódios" , studio: "Foch Films", airedSeason: "2020-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 15, note: 6 } ] },
+        { id: "masamune-kuns-revenge", img: "myranks-images/masamune-kuns-revenge.webp", title: "Masamune-kun's Revenge", info: "(~) 1ª temporada: 12 episódios" , studio: "Silver Link / Studio Blanc", airedSeason: "2017-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 5 }, { label: "2ª temporada", episodes: 12, unwatched: true } ] },
+        { id: "immortal-king", img: "myranks-images/immortal-king.webp", title: "The Daily Life of the Immortal King", info: "(~) 1ª temporada: 15 episódios" , studio: "Foch Films", airedSeason: "2020-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 15, note: 6 }, { label: "2ª temporada", episodes: 12, unwatched: true }, { label: "3ª temporada", episodes: 12, unwatched: true }, { label: "4ª temporada", episodes: 12, unwatched: true }, { label: "5ª temporada", episodes: 12, unwatched: true } ] },
         { id: "my-little-monster", img: "myranks-images/my-little-monster.webp", title: "My Little Monster", info: "13 episódios" , studio: "Brain's Base", airedSeason: "2012", rewatch: "No", mal: [ { label: "1 temporada", episodes: 13, note: 6 } ] },
         { id: "4-cut", img: "myranks-images/4-cut.webp", title: "4 Cut Hero", info: "10 episódios" , studio: "Marvy Jack", airedSeason: "2024", rewatch: "No", mal: [ { label: "1 temporada", episodes: 10, note: 4 } ] },
         { id: "the-water-magician", img: "myranks-images/the-water-magician.webp", title: "The Water Magician", info: "12 episódios" , studio: "Arvo Animation", airedSeason: "2025", rewatch: "No", mal: [ { label: "1 temporada", episodes: 12, note: 6 } ] },
         { id: "i-got-a-cheat-skill", img: "myranks-images/i-got-a-cheat-skill.webp", title: "I Got a Cheat Skill in Another World and Became Unrivaled in The Real World, Too", info: "13 episódios" , studio: "Marvy Jack", airedSeason: "2022-?", rewatch: "No", mal: [ { label: "1 temporada", episodes: 13, note: 5 } ] },
         { id: "bubble", img: "myranks-images/bubble.webp", title: "Bubble", info: "Filme: 1h40m" , studio: "Wit Studio", airedSeason: "2022", rewatch: "No", mal: [ { label: "Filme", episodes: "1h40m", note: 6 } ] },
         { id: "no-game-no-life-zero", img: "myranks-images/no-game-no-life-zero.webp", title: "No Game No Life: Zero", info: "Filme: 1h47m" , studio: "Madhouse", airedSeason: "2017", rewatch: "No", mal: [ { label: "Filme", episodes: "1h47m", note: 6 } ] },
-        { id: "campfire-cooking", img: "myranks-images/campfire-cooking.webp", title: "Campfire Cooking in Another World with My Absurd Skill", info: "(~) 1ª temporada: 12 episódios" , studio: "MAPPA", airedSeason: "2023-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 5 } ] },
+        { id: "campfire-cooking", img: "myranks-images/campfire-cooking.webp", title: "Campfire Cooking in Another World with My Absurd Skill", info: "(~) 1ª temporada: 12 episódios" , studio: "MAPPA", airedSeason: "2023-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 5 }, { label: "2ª temporada", episodes: 12, unwatched: true } ] },
         { id: "magi-sinbad", img: "myranks-images/magi-adventure-of-sinbad.webp", title: "Magi: Adventure of Sinbad", info: "13 episódios" , studio: "A-1 Pictures / Sanzigen", airedSeason: "2016", rewatch: "No", mal: [ { label: "1 temporada", episodes: 13, note: 6 } ] },
         { id: "failure-frame", img: "myranks-images/failure-frame.webp", title: "Failure Frame: I Became the Strongest and Annihilated Everything With Low-Level Spells", info: "12 episódios" , studio: "Arvo Animation", airedSeason: "2023", rewatch: "No", mal: [ { label: "1 temporada", episodes: 12, note: 5 } ] },
         { id: "the-worlds-finest-assassin", img: "myranks-images/the-worlds-finest-assassin.webp", title: "The World's Finest Assassin Gets Reincarnated in Another World as an Aristocrat", info: "1 temporada: 12 episódios" , studio: "Satelight", airedSeason: "2021-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 5 } ] },
         { id: "black-summoner", img: "myranks-images/black-summoner.webp", title: "Black Summoner", info: "12 episódios" , studio: "C2C", airedSeason: "2022", rewatch: "No", mal: [ { label: "1 temporada", episodes: 12, note: 5 } ] },
         { id: "akashic-records", img: "myranks-images/akashic-records.webp", title: "Akashic Records of Bastard Magic Instructor", info: "12 episódios" , studio: "Liden Films", airedSeason: "2017", rewatch: "No", mal: [ { label: "1 temporada", episodes: 12, note: 4 } ] },
         { id: "cannon-busters", img: "myranks-images/cannon-busters.webp", title: "Cannon Busters", info: "12 episódios" , studio: "Satelight", airedSeason: "2019!", rewatch: "No", mal: [ { label: "1 temporada", episodes: 12, note: 4 } ] },
-        { id: "wind-breaker", img: "myranks-images/wind-breaker.webp", title: "Wind Breaker", info: "(~) 1ª temporada: 13 episódios" , studio: "CloverWorks", airedSeason: "2024-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 13, note: 4 } ] },
+        { id: "wind-breaker", img: "myranks-images/wind-breaker.webp", title: "Wind Breaker", info: "(~) 1ª temporada: 13 episódios" , studio: "CloverWorks", airedSeason: "2024-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 13, note: 4 }, { label: "2ª temporada", episodes: 12, unwatched: true } ] },
         { id: "trapped-in-a-dating-sim", img: "myranks-images/trapped-in-a-dating-sim.webp", title: "Trapped in a Dating Sim: The World of Otome Games is Tough for Mobs", info: "1 temporada: 12 episódios" , studio: "Project No.9", airedSeason: "2021-?", rewatch: "No", mal: [ { label: "1ª temporada", episodes: 12, note: 4 } ] }
       ];
 
@@ -4469,7 +4534,7 @@
         { id: "overshadowed-to-overpowered", img: "forwatch-images/overshadowed-to-overpowered.webp", title: "From Overshadowed to Overpowered: Second Reincarnation of a Talentless Sage", info: "Progress: -/-", season: "summer-2026", url: "https://www.anime-planet.com/anime/from-overshadowed-to-overpowered-second-reincarnation-of-a-talentless-sage"},
 
         // Spring 2026
-        { id: "slime", img: "forwatch-images/slime.webp", title: "That Time I Got Reincarnated as a Slime", info: "4ª temporada", season: "spring-2026", url: "https://www.anime-planet.com/anime/that-time-i-got-reincarnated-as-a-slime-season-4", seasons: [60]},
+        { id: "slime", img: "forwatch-images/slime.webp", title: "That Time I Got Reincarnated as a Slime", info: "4ª temporada", season: "spring-2026", url: "https://www.anime-planet.com/anime/that-time-i-got-reincarnated-as-a-slime-season-4", seasons: [24]},
         { id: "wistoria-2", img: "forwatch-images/wistoria.webp", title: "Wistoria: Wand and Sword", info: "2º temporada - Progress: 11/12", season: "spring-2026", url: "https://www.anime-planet.com/anime/wistoria-wand-and-sword-2nd-season"},
         { id: "imfwtspgimc", img: "forwatch-images/imfwtspgimc.webp", title: "I Made Friends with the Second Prettiest Girl in My Class", info: "Progress: 10/12", season: "spring-2026", url: "https://www.anime-planet.com/anime/i-made-friends-with-the-second-prettiest-girl-in-my-class"},
         { id: "farming-life-2", img: "forwatch-images/farming-life.webp", title: "Farming Life in Another World", info: "2ª temporada - Progress: 7/12", season: "spring-2026", url: "https://www.anime-planet.com/anime/farming-life-in-another-world-2"},
@@ -4931,7 +4996,6 @@
         "gachiakuta": { info: "Season 2 in Production" },
         "dan-da-dan": { info: "3rd Season in 2027" },
         "demon-slayer": { info: "2 Movies in Production" },
-        "fragrant-flowers": { info: "2nd Season Announced" },
         "shangri-la-frontier": { info: "3rd Season in 2027" },
         "blue-box": { info: "2nd Season in Oct 2026" },
         "mashle": { info: "3rd Season in 2027" },
@@ -4944,6 +5008,7 @@
         "i-got-a-cheat-skill": { info: "Season 2 in Production" },
         "danmachi": { info: "Season 6 Announced" },
         "the-worlds-finest-assassin": { info: "2nd Season in 2027" },
+        "the-apothecary-diaries": {info: "3rd Season in Oct 2026"},
 
         //my chart
         "black-clover": { info: "5th Season in Oct 2026" },
